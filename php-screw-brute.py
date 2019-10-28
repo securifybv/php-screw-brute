@@ -1,23 +1,23 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import sys
 import glob
 import zlib
 
-header = '\tPM9SCREW\t'
-knownplaintext = '\x78\x01' # zlib level 1
+header = b'\tPM9SCREW\t'
+knownplaintext = b'\x78\x01' # zlib level 1
 
 def decipher(ciphertext, key, filename = None):
-	plaintext = ''
+	plaintext = bytearray()
 	i = 0
 	for c in ciphertext:
 		index = (len(ciphertext) - i) % len(key)
-		plaintext = plaintext + chr(key[index] ^ (~ord(c) & 0xFF))
+		plaintext.append((key[index] ^ ~c) & 0xFF)
 		i = i + 1
 
 	try:
 		plaintext = zlib.decompress(plaintext)
 		if filename != None:
-			file = open(filename, 'w')
+			file = open(filename, 'wb')
 			file.write(plaintext)
 			file.close()
 		return True
@@ -38,7 +38,7 @@ def recover_key_bytes(ciphertexts, knownplaintext, min = 5, max = 32):
 		for ciphertext in ciphertexts:
 			for i in range(0, len(knownplaintext)):
 				index = (len(ciphertext) - i) % len(key)
-				c = ord(ciphertext[i]) ^ (~ord(knownplaintext[i]) & 0xFF)
+				c = (ciphertext[i] ^ ~knownplaintext[i]) & 0xFF
 				if key[index] == None:
 					key[index] = c
 				elif key[index] != c:
@@ -61,7 +61,7 @@ def brute_force_key(ciphertext, partial_key, idx_missing_bytes):
 	return False
 
 def print_key(key, prefix = 'Key:'):
-	print prefix, ''.join(format(c, ' 02x') for c in key)
+	print(f'{prefix} {"".join(f"{c:02x} " for c in key)}')
 
 def main(argv):
 	files = []
@@ -72,12 +72,12 @@ def main(argv):
 		files = glob.glob('*.php')
 		
 	if len(files) == 0:
-		print 'PHP Screw Brute recovers the key for PHP files protected with PHP Screw'
-		print 'Usage:',__file__,'<protected PHP files>'
+		print('PHP Screw Brute recovers the key for PHP files protected with PHP Screw')
+		print(f'Usage: {__file__} <protected PHP files>')
 		exit(1)
 
 	for file in files:
-		f = open(file)
+		f = open(file, 'rb')
 		ciphertexts.append(f.read()[len(header):])
 		f.close()
 
@@ -92,14 +92,14 @@ def main(argv):
 		print_key(key, '[+] Trying key:   ')
 		if brute_force_key(ciphertexts[0], key, idx_missing_bytes):
 			print_key(key, '[!] Recovered key:')
-			print '[+] Deciphering files'
+			print('[+] Deciphering files')
 
 			i = 0
 			for file in files:
-				print '[-]', file
+				print(f'[-] {file}')
 				decipher(ciphertexts[i], key, file + '.plain')
 				i = i + 1
 			exit(0)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
 	main(sys.argv[1:])
